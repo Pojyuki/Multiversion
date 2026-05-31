@@ -3,6 +3,7 @@
 namespace MultiVersion\network\proto\v486\packets;
 
 use MultiVersion\network\proto\utils\ReflectionUtils;
+use MultiVersion\network\proto\v486\v486PacketTranslator;
 use MultiVersion\network\proto\v486\packets\types\inventory\v486InventoryTransactionChangedSlotsHack;
 use MultiVersion\network\proto\v486\packets\types\inventory\v486NetworkInventoryAction;
 use MultiVersion\network\proto\v486\packets\types\v486UseItemTransactionData;
@@ -13,6 +14,7 @@ use pocketmine\network\mcpe\protocol\types\inventory\InventoryTransactionChanged
 use pocketmine\network\mcpe\protocol\types\inventory\MismatchTransactionData;
 use pocketmine\network\mcpe\protocol\types\inventory\NormalTransactionData;
 use pocketmine\network\mcpe\protocol\types\inventory\ReleaseItemTransactionData;
+use pocketmine\network\mcpe\protocol\types\inventory\TransactionData;
 use pocketmine\network\mcpe\protocol\types\inventory\UseItemOnEntityTransactionData;
 use pocketmine\network\mcpe\protocol\types\inventory\UseItemTransactionData;
 
@@ -28,6 +30,7 @@ class v486InventoryTransactionPacket extends InventoryTransactionPacket{
 
 	protected function decodePayload(\pmmp\encoding\ByteBufferReader $in, ?int $protocolId = null) : void{
 
+		$protocolId ??= v486PacketTranslator::PROTOCOL_VERSION;
 		$in = \MultiVersion\network\proto\v486\v486PacketSerializer::reader($in, $protocolId);
 		$this->requestId = $in->getVarInt();
 		$this->requestChangedSlots = [];
@@ -56,11 +59,12 @@ class v486InventoryTransactionPacket extends InventoryTransactionPacket{
 		}
 
 		ReflectionUtils::setProperty(get_class($this->trData), $this->trData, "actions", $actions);
-		ReflectionUtils::invoke(get_class($this->trData), $this->trData, "decodeData", $in->getReader());
+		self::decodeTransactionDataCompat($this->trData, $in->getReader(), $protocolId);
 	}
 
 	protected function encodePayload(\pmmp\encoding\ByteBufferWriter $out, ?int $protocolId = null) : void{
 
+		$protocolId ??= v486PacketTranslator::PROTOCOL_VERSION;
 		$out = \MultiVersion\network\proto\v486\v486PacketSerializer::writer($out, $protocolId);
 		$out->putVarInt($this->requestId);
 		if($this->requestId !== 0){
@@ -72,7 +76,22 @@ class v486InventoryTransactionPacket extends InventoryTransactionPacket{
 
 		$out->putUnsignedVarInt($this->trData->getTypeId());
 
-		$this->trData->encode($out->getWriter());
+		self::encodeTransactionDataCompat($this->trData, $out->getWriter(), $protocolId);
+	}
+
+	private static function decodeTransactionDataCompat(TransactionData $transactionData, \pmmp\encoding\ByteBufferReader $in, int $protocolId) : void{
+		$method = new \ReflectionMethod($transactionData, "decodeData");
+		$args = $method->getNumberOfParameters() >= 2 ? [$in, $protocolId] : [$in];
+		ReflectionUtils::invoke(get_class($transactionData), $transactionData, "decodeData", ...$args);
+	}
+
+	private static function encodeTransactionDataCompat(TransactionData $transactionData, \pmmp\encoding\ByteBufferWriter $out, int $protocolId) : void{
+		$method = new \ReflectionMethod($transactionData, "encode");
+		if($method->getNumberOfParameters() >= 2){
+			$transactionData->encode($out, $protocolId);
+		}else{
+			$transactionData->encode($out);
+		}
 	}
 }
 

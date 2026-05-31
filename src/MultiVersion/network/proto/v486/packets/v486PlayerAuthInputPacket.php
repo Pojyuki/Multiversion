@@ -3,6 +3,7 @@
 namespace MultiVersion\network\proto\v486\packets;
 
 use MultiVersion\network\proto\utils\ReflectionUtils;
+use MultiVersion\network\proto\v486\v486PacketTranslator;
 use MultiVersion\network\proto\v486\packets\types\inventory\stackrequest\v486ItemStackRequest;
 use MultiVersion\network\proto\v486\packets\types\v486ItemInteractionData;
 use pocketmine\network\mcpe\protocol\PacketDecodeException;
@@ -29,6 +30,7 @@ class v486PlayerAuthInputPacket extends PlayerAuthInputPacket{
      * @throws ReflectionException
      */
     protected function decodePayload(\pmmp\encoding\ByteBufferReader $in, ?int $protocolId = null) : void{
+    	$protocolId ??= v486PacketTranslator::PROTOCOL_VERSION;
     	$in = \MultiVersion\network\proto\v486\v486PacketSerializer::reader($in, $protocolId);
         ReflectionUtils::setProperty(PlayerAuthInputPacket::class, $this, "pitch", $in->getLFloat());
         ReflectionUtils::setProperty(PlayerAuthInputPacket::class, $this, "yaw", $in->getLFloat());
@@ -47,7 +49,7 @@ class v486PlayerAuthInputPacket extends PlayerAuthInputPacket{
         ReflectionUtils::setProperty(PlayerAuthInputPacket::class, $this, "delta", $in->getVector3());
 
         if($this->getInputFlags()->get(PlayerAuthInputFlags::PERFORM_ITEM_INTERACTION)){
-            $d = v486ItemInteractionData::read($in);
+            $d = v486ItemInteractionData::read($in, $protocolId);
             ReflectionUtils::setProperty(PlayerAuthInputPacket::class, $this, 'itemInteractionData', new ItemInteractionData($d->getRequestId(), $d->getRequestChangedSlots(), $d->getTransactionData()));
         }
         if($this->getInputFlags()->get(PlayerAuthInputFlags::PERFORM_ITEM_STACK_REQUEST)){

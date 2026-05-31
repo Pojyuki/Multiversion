@@ -3,6 +3,7 @@
 namespace MultiVersion\network\proto\v419\packets;
 
 use MultiVersion\network\proto\utils\ReflectionUtils;
+use MultiVersion\network\proto\v419\v419PacketTranslator;
 use MultiVersion\network\proto\v419\packets\types\inventory\stackrequest\v419ItemStackRequest;
 use MultiVersion\network\proto\v419\packets\types\v419ItemInteractionData;
 use pocketmine\math\Vector2;
@@ -29,6 +30,7 @@ class v419PlayerAuthInputPacket extends PlayerAuthInputPacket{
 	 * @throws ReflectionException
 	 */
 	protected function decodePayload(\pmmp\encoding\ByteBufferReader $in, ?int $protocolId = null) : void{
+		$protocolId ??= v419PacketTranslator::PROTOCOL_VERSION;
 		$in = \MultiVersion\network\proto\v419\v419PacketSerializer::reader($in, $protocolId);
 		ReflectionUtils::setProperty(PlayerAuthInputPacket::class, $this, "pitch", $in->getLFloat());
 		ReflectionUtils::setProperty(PlayerAuthInputPacket::class, $this, "yaw", $in->getLFloat());
@@ -47,7 +49,7 @@ class v419PlayerAuthInputPacket extends PlayerAuthInputPacket{
 		ReflectionUtils::setProperty(PlayerAuthInputPacket::class, $this, "delta", $in->getVector3());
 
 		if($this->getInputFlags()->get(PlayerAuthInputFlags::PERFORM_ITEM_INTERACTION)){
-			$d = v419ItemInteractionData::read($in);
+			$d = v419ItemInteractionData::read($in, $protocolId);
 			ReflectionUtils::setProperty(PlayerAuthInputPacket::class, $this, 'itemInteractionData', new ItemInteractionData($d->getRequestId(), $d->getRequestChangedSlots(), $d->getTransactionData()));
 		}
 		if($this->getInputFlags()->get(PlayerAuthInputFlags::PERFORM_ITEM_STACK_REQUEST)){

@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace MultiVersion\network\proto\v419\packets\types;
 
+use MultiVersion\network\proto\v419\v419PacketTranslator;
 use pocketmine\network\mcpe\protocol\serializer\PacketSerializer;
 use pocketmine\network\mcpe\protocol\types\inventory\InventoryTransactionChangedSlotsHack;
 use pocketmine\network\mcpe\protocol\types\inventory\UseItemTransactionData;
@@ -50,7 +51,8 @@ final class v419ItemInteractionData{
 		return $this->transactionData;
 	}
 
-	public static function read(PacketSerializer $in) : self{
+	public static function read(PacketSerializer $in, ?int $protocolId = null) : self{
+		$protocolId ??= v419PacketTranslator::PROTOCOL_VERSION;
 		$requestId = $in->getVarInt();
 		$requestChangedSlots = [];
 		if($requestId !== 0){
@@ -60,11 +62,12 @@ final class v419ItemInteractionData{
 			}
 		}
 		$transactionData = new v419UseItemTransactionData();
-		$transactionData->decode($in->getReader());
+		self::decodeTransactionDataCompat($transactionData, $in->getReader(), $protocolId);
 		return new self($requestId, $requestChangedSlots, $transactionData);
 	}
 
-	public function write(PacketSerializer $out) : void{
+	public function write(PacketSerializer $out, ?int $protocolId = null) : void{
+		$protocolId ??= v419PacketTranslator::PROTOCOL_VERSION;
 		$out->putVarInt($this->requestId);
 		if($this->requestId !== 0){
 			$out->putUnsignedVarInt(count($this->requestChangedSlots));
@@ -72,6 +75,24 @@ final class v419ItemInteractionData{
 				$changedSlot->write($out->getWriter());
 			}
 		}
-		$this->transactionData->encode($out->getWriter());
+		self::encodeTransactionDataCompat($this->transactionData, $out->getWriter(), $protocolId);
+	}
+
+	private static function decodeTransactionDataCompat(UseItemTransactionData $transactionData, \pmmp\encoding\ByteBufferReader $in, int $protocolId) : void{
+		$method = new \ReflectionMethod($transactionData, "decode");
+		if($method->getNumberOfParameters() >= 2){
+			$transactionData->decode($in, $protocolId);
+		}else{
+			$transactionData->decode($in);
+		}
+	}
+
+	private static function encodeTransactionDataCompat(UseItemTransactionData $transactionData, \pmmp\encoding\ByteBufferWriter $out, int $protocolId) : void{
+		$method = new \ReflectionMethod($transactionData, "encode");
+		if($method->getNumberOfParameters() >= 2){
+			$transactionData->encode($out, $protocolId);
+		}else{
+			$transactionData->encode($out);
+		}
 	}
 }
