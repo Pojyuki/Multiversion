@@ -1,0 +1,410 @@
+<?php
+
+namespace MultiVersion\network\proto\v419;
+
+use MultiVersion\Loader;
+use MultiVersion\network\MVNetworkSession;
+use MultiVersion\network\proto\chunk\serializer\MultiLayeredChunkSerializer;
+use MultiVersion\network\proto\PacketTranslator;
+use MultiVersion\network\proto\static\MVRuntimeIDtoStateID;
+use MultiVersion\network\proto\v419\packets\types\v419CreativeContentEntry;
+use MultiVersion\network\proto\v419\packets\v419ActorEventPacket;
+use MultiVersion\network\proto\v419\packets\v419AddActorPacket;
+use MultiVersion\network\proto\v419\packets\v419AddItemActorPacket;
+use MultiVersion\network\proto\v419\packets\v419AddPlayerPacket;
+use MultiVersion\network\proto\v419\packets\v419AddVolumeEntityPacket;
+use MultiVersion\network\proto\v419\packets\v419AdventureSettingsPacket;
+use MultiVersion\network\proto\v419\packets\v419AnimatePacket;
+use MultiVersion\network\proto\v419\packets\v419AnimateEntityPacket;
+use MultiVersion\network\proto\v419\packets\v419AvailableCommandsPacket;
+use MultiVersion\network\proto\v419\packets\v419BiomeDefinitionListPacket;
+use MultiVersion\network\proto\v419\packets\v419CameraShakePacket;
+use MultiVersion\network\proto\v419\packets\v419ClientboundMapItemDataPacket;
+use MultiVersion\network\proto\v419\packets\v419ContainerClosePacket;
+use MultiVersion\network\proto\v419\packets\v419CraftingDataPacket;
+use MultiVersion\network\proto\v419\packets\v419CreativeContentPacket;
+use MultiVersion\network\proto\v419\packets\v419DisconnectPacket;
+use MultiVersion\network\proto\v419\packets\v419EducationSettingsPacket;
+use MultiVersion\network\proto\v419\packets\v419EmotePacket;
+use MultiVersion\network\proto\v419\packets\v419GameRulesChangedPacket;
+use MultiVersion\network\proto\v419\packets\v419HurtArmorPacket;
+use MultiVersion\network\proto\v419\packets\v419InventoryContentPacket;
+use MultiVersion\network\proto\v419\packets\v419InventorySlotPacket;
+use MultiVersion\network\proto\v419\packets\v419InventoryTransactionPacket;
+use MultiVersion\network\proto\v419\packets\v419ItemStackResponsePacket;
+use MultiVersion\network\proto\v419\packets\v419LevelChunkPacket;
+use MultiVersion\network\proto\v419\packets\v419LevelSoundEventPacket;
+use MultiVersion\network\proto\v419\packets\v419LoginPacket;
+use MultiVersion\network\proto\v419\packets\v419MobArmorEquipmentPacket;
+use MultiVersion\network\proto\v419\packets\v419MobEquipmentPacket;
+use MultiVersion\network\proto\v419\packets\v419MobEffectPacket;
+use MultiVersion\network\proto\v419\packets\v419ModalFormResponsePacket;
+use MultiVersion\network\proto\v419\packets\v419NetworkChunkPublisherUpdatePacket;
+use MultiVersion\network\proto\v419\packets\v419NetworkSettingsPacket;
+use MultiVersion\network\proto\v419\packets\v419PacketPool;
+use MultiVersion\network\proto\v419\packets\v419PlaySoundPacket;
+use MultiVersion\network\proto\v419\packets\v419PlayerActionPacket;
+use MultiVersion\network\proto\v419\packets\v419PlayerAuthInputPacket;
+use MultiVersion\network\proto\v419\packets\v419PlayerListPacket;
+use MultiVersion\network\proto\v419\packets\v419PlayerSkinPacket;
+use MultiVersion\network\proto\v419\packets\v419RemoveVolumeEntityPacket;
+use MultiVersion\network\proto\v419\packets\v419RequestChunkRadiusPacket;
+use MultiVersion\network\proto\v419\packets\v419ResourcePacksInfoPacket;
+use MultiVersion\network\proto\v419\packets\v419ResourcePackStackPacket;
+use MultiVersion\network\proto\v419\packets\v419SetActorDataPacket;
+use MultiVersion\network\proto\v419\packets\v419SetActorMotionPacket;
+use MultiVersion\network\proto\v419\packets\v419SetTitlePacket;
+use MultiVersion\network\proto\v419\packets\v419SpawnParticleEffectPacket;
+use MultiVersion\network\proto\v419\packets\v419StartGamePacket;
+use MultiVersion\network\proto\v419\packets\v419StopSoundPacket;
+use MultiVersion\network\proto\v419\packets\v419TextPacket;
+use MultiVersion\network\proto\v419\packets\v419TransferPacket;
+use MultiVersion\network\proto\v419\packets\v419UpdateBlockPacket;
+use MultiVersion\network\proto\v419\packets\v419UpdateAttributesPacket;
+use MultiVersion\network\proto\v486\packets\v486SetActorMotionPacket;
+use pmmp\encoding\ByteBufferWriter;
+use pocketmine\inventory\CreativeInventory;
+use pocketmine\math\Vector2;
+use pocketmine\math\Vector3;
+use pocketmine\network\mcpe\compression\ZlibCompressor;
+use pocketmine\network\mcpe\convert\ItemTranslator;
+use pocketmine\network\mcpe\convert\TypeConverter;
+use pocketmine\network\mcpe\handler\InGamePacketHandler;
+use pocketmine\network\mcpe\protocol\ActorEventPacket;
+use pocketmine\network\mcpe\protocol\AddActorPacket;
+use pocketmine\network\mcpe\protocol\AddItemActorPacket;
+use pocketmine\network\mcpe\protocol\AddPlayerPacket;
+use pocketmine\network\mcpe\protocol\AddVolumeEntityPacket;
+use pocketmine\network\mcpe\protocol\AnimatePacket;
+use pocketmine\network\mcpe\protocol\AnimateEntityPacket;
+use pocketmine\network\mcpe\protocol\AvailableActorIdentifiersPacket;
+use pocketmine\network\mcpe\protocol\AvailableCommandsPacket;
+use pocketmine\network\mcpe\protocol\BiomeDefinitionListPacket;
+use pocketmine\network\mcpe\protocol\CameraShakePacket;
+use pocketmine\network\mcpe\protocol\ClientboundMapItemDataPacket;
+use pocketmine\network\mcpe\protocol\ClientboundPacket;
+use pocketmine\network\mcpe\protocol\ContainerClosePacket;
+use pocketmine\network\mcpe\protocol\CraftingDataPacket;
+use pocketmine\network\mcpe\protocol\CreativeContentPacket;
+use pocketmine\network\mcpe\protocol\DisconnectPacket;
+use pocketmine\network\mcpe\protocol\EducationSettingsPacket;
+use pocketmine\network\mcpe\protocol\EmotePacket;
+use pocketmine\network\mcpe\protocol\GameRulesChangedPacket;
+use pocketmine\network\mcpe\protocol\HurtArmorPacket;
+use pocketmine\network\mcpe\protocol\InventoryContentPacket;
+use pocketmine\network\mcpe\protocol\InventorySlotPacket;
+use pocketmine\network\mcpe\protocol\InventoryTransactionPacket;
+use pocketmine\network\mcpe\protocol\ItemRegistryPacket;
+use pocketmine\network\mcpe\protocol\ItemStackResponsePacket;
+use pocketmine\network\mcpe\protocol\LevelChunkPacket;
+use pocketmine\network\mcpe\protocol\LevelEventPacket;
+use pocketmine\network\mcpe\protocol\LevelSoundEventPacket;
+use pocketmine\network\mcpe\protocol\MobArmorEquipmentPacket;
+use pocketmine\network\mcpe\protocol\MobEquipmentPacket;
+use pocketmine\network\mcpe\protocol\MobEffectPacket;
+use pocketmine\network\mcpe\protocol\ModalFormResponsePacket;
+use pocketmine\network\mcpe\protocol\MovePlayerPacket;
+use pocketmine\network\mcpe\protocol\NetworkChunkPublisherUpdatePacket;
+use pocketmine\network\mcpe\protocol\NetworkSettingsPacket;
+use pocketmine\network\mcpe\protocol\PhotoTransferPacket;
+use pocketmine\network\mcpe\protocol\PlaySoundPacket;
+use pocketmine\network\mcpe\protocol\PlayerActionPacket;
+use pocketmine\network\mcpe\protocol\PlayerAuthInputPacket;
+use pocketmine\network\mcpe\protocol\PlayerListPacket;
+use pocketmine\network\mcpe\protocol\PlayerSkinPacket;
+use pocketmine\network\mcpe\protocol\RemoveVolumeEntityPacket;
+use pocketmine\network\mcpe\protocol\RequestChunkRadiusPacket;
+use pocketmine\network\mcpe\protocol\ResourcePacksInfoPacket;
+use pocketmine\network\mcpe\protocol\ResourcePackStackPacket;
+use pocketmine\network\mcpe\protocol\serializer\NetworkNbtSerializer;
+use pocketmine\network\mcpe\protocol\ServerboundPacket;
+use pocketmine\network\mcpe\protocol\SetActorDataPacket;
+use pocketmine\network\mcpe\protocol\SetActorMotionPacket;
+use pocketmine\network\mcpe\protocol\SetTitlePacket;
+use pocketmine\network\mcpe\protocol\SpawnParticleEffectPacket;
+use pocketmine\network\mcpe\protocol\StartGamePacket;
+use pocketmine\network\mcpe\protocol\StopSoundPacket;
+use pocketmine\network\mcpe\protocol\TextPacket;
+use pocketmine\network\mcpe\protocol\TransferPacket;
+use pocketmine\network\mcpe\protocol\types\AbilitiesLayer;
+use pocketmine\network\mcpe\protocol\types\ActorEvent;
+use pocketmine\network\mcpe\protocol\types\CacheableNbt;
+use pocketmine\network\mcpe\protocol\types\LevelEvent;
+use pocketmine\network\mcpe\protocol\types\LevelSoundEvent;
+use pocketmine\network\mcpe\protocol\types\ParticleIds;
+use pocketmine\network\mcpe\protocol\types\skin\SkinData;
+use pocketmine\network\mcpe\protocol\UpdateAbilitiesPacket;
+use pocketmine\network\mcpe\protocol\UpdateAdventureSettingsPacket;
+use pocketmine\network\mcpe\protocol\UpdateAttributesPacket;
+use pocketmine\network\mcpe\protocol\UpdateBlockPacket;
+use pocketmine\Server;
+use pocketmine\utils\AssumptionFailedError;
+use ReflectionException;
+use RuntimeException;
+use Symfony\Component\Filesystem\Path;
+
+class v419PacketTranslator extends PacketTranslator{
+
+	public const PROTOCOL_VERSION = 419;
+	public const RAKNET_VERSION = 10;
+	public const OLD_COMPRESSION = true;
+	public const ENCRYPTION_CONTEXT = false;
+
+	private string $craftingDataCache;
+
+	private CreativeContentPacket $creativeContent;
+
+	private v419BiomeDefinitionListPacket $biomeDefs;
+
+	private AvailableActorIdentifiersPacket $availableActorIdentifiers;
+
+	public function __construct(){
+		$typeConverter = v419TypeConverter::getInstance()->getTypeConverter();
+
+		$craftingDP = new v419CraftingDataPacket();
+		$craftingDP->cleanRecipes = true;
+		$entries = [];
+		foreach(CreativeInventory::getInstance()->getAll() as $k => $item){
+			try{
+				$entries[] = new v419CreativeContentEntry($k, $typeConverter->coreItemStackToNet($item));
+			}catch(AssumptionFailedError){
+
+			}
+		}
+
+		$this->creativeContent = new v419CreativeContentPacket();
+        $this->creativeContent->entries = $entries;
+
+		$this->biomeDefs = v419BiomeDefinitionListPacket::v419create(self::loadCompoundFromFile(Path::join(Loader::getPluginResourcePath(), "v419", "biome_definitions.nbt")));
+		$this->availableActorIdentifiers = AvailableActorIdentifiersPacket::create(self::loadCompoundFromFile(Path::join(Loader::getPluginResourcePath(), "v419", "entity_identifiers.nbt")));
+
+		parent::__construct($typeConverter, $factory = new v419PacketSerializerFactory(new MultiLayeredChunkSerializer()), new v419PacketPool(), ZlibCompressor::getInstance());
+
+		$writer = new ByteBufferWriter();
+		if((new \ReflectionMethod($craftingDP, "encode"))->getNumberOfParameters() >= 2){
+			$craftingDP->encode($writer, self::PROTOCOL_VERSION);
+		}else{
+			$craftingDP->encode($writer);
+		}
+		$this->craftingDataCache = $writer->getData();
+	}
+
+	/**
+	 * @param string $path
+	 *
+	 * @return CacheableNbt
+	 */
+	private static function loadCompoundFromFile(string $path) : CacheableNbt{
+		$rawNbt = @file_get_contents($path);
+		if($rawNbt === false){
+			throw new RuntimeException("Failed to read file");
+		}
+		return new CacheableNbt((new NetworkNbtSerializer())->read($rawNbt)->mustGetCompoundTag());
+	}
+
+	public function handleInGame(MVNetworkSession $session) : ?InGamePacketHandler{
+		return new v419InGamePacketHandler($session->getPlayer(), $session, $session->getInvManager());
+	}
+
+	public function handleIncoming(ServerboundPacket $pk) : ?ServerboundPacket{
+		// Legacy clients may spam these client-origin packets; server logic doesn't need them.
+		if($pk instanceof MovePlayerPacket || $pk instanceof LevelSoundEventPacket){
+			return null;
+		}
+		if($pk instanceof v419DisconnectPacket){
+			return DisconnectPacket::create(0, $pk->message, $pk->filteredMessage);
+		}
+		if($pk instanceof v419InventoryTransactionPacket){
+			return InventoryTransactionPacket::create($pk->requestId, $pk->requestChangedSlots, $pk->trData);
+		}
+		if($pk instanceof v419ModalFormResponsePacket){
+			if($pk->cancelReason !== null){
+				return ModalFormResponsePacket::cancel($pk->formId, $pk->cancelReason);
+			}
+			return ModalFormResponsePacket::response($pk->formId, $pk->formData ?? "null");
+		}
+		if($pk instanceof v419PlayerActionPacket){
+			return PlayerActionPacket::create($pk->actorRuntimeId, $pk->action, $pk->blockPosition, $pk->blockPosition, $pk->face);
+		}
+		if($pk instanceof v419RequestChunkRadiusPacket){
+			return RequestChunkRadiusPacket::create($pk->radius, $pk->radius);
+		}
+		if($pk instanceof v486SetActorMotionPacket){
+			return SetActorMotionPacket::create($pk->actorRuntimeId, $pk->motion, 0);
+		}
+		return $pk;
+	}
+
+	/**
+	 * @throws ReflectionException
+	 */
+	public function handleOutgoing(ClientboundPacket $pk) : ?ClientboundPacket{
+		if($pk instanceof ActorEventPacket){
+			$eventData = $pk->eventData;
+			if($pk->eventId === ActorEvent::EATING_ITEM){
+				$value = $eventData;
+				$netId = $value >> 16;
+				$netData = $value & 0xffff;
+				[$netId, $netData] = v419TypeConverter::getInstance()->getTypeConverter()->getMVItemTranslator()->toNetworkId(TypeConverter::getInstance()->getItemTranslator()->fromNetworkId($netId, $netData, ItemTranslator::NO_BLOCK_RUNTIME_ID));
+				$eventData = ($netId << 16) | $netData;
+			}
+			return v419ActorEventPacket::fromLatest($pk, $eventData);
+		}
+        if($pk instanceof ResourcePacksInfoPacket){
+            return v419ResourcePacksInfoPacket::fromLatest($pk);
+        }
+		if($pk instanceof AddActorPacket) return v419AddActorPacket::fromLatest($pk);
+		if($pk instanceof AddItemActorPacket) return v419AddItemActorPacket::fromLatest($pk);
+		if($pk instanceof AddPlayerPacket) return v419AddPlayerPacket::fromLatest($pk);
+		if($pk instanceof AddVolumeEntityPacket) return v419AddVolumeEntityPacket::fromLatest($pk);
+		if($pk instanceof AnimatePacket) return v419AnimatePacket::fromLatest($pk);
+		if($pk instanceof AnimateEntityPacket) return v419AnimateEntityPacket::fromLatest($pk);
+		if($pk instanceof AvailableActorIdentifiersPacket) return $this->availableActorIdentifiers;
+		if($pk instanceof AvailableCommandsPacket) return v419AvailableCommandsPacket::fromLatest($pk);
+		if($pk instanceof BiomeDefinitionListPacket) return $this->biomeDefs;
+        if($pk instanceof ContainerClosePacket) return v419ContainerClosePacket::fromLatest($pk);
+        if($pk instanceof TextPacket) return v419TextPacket::fromLatest($pk);
+		if($pk instanceof CameraShakePacket) return v419CameraShakePacket::fromLatest($pk);
+		if($pk instanceof ClientboundMapItemDataPacket) return v419ClientboundMapItemDataPacket::fromLatest($pk);
+		if($pk instanceof CreativeContentPacket) return clone $this->creativeContent;
+		if($pk instanceof DisconnectPacket) return v419DisconnectPacket::fromLatest($pk);
+		if($pk instanceof EducationSettingsPacket) return v419EducationSettingsPacket::fromLatest($pk);
+		if($pk instanceof EmotePacket) return v419EmotePacket::fromLatest($pk);
+		if($pk instanceof GameRulesChangedPacket) return v419GameRulesChangedPacket::fromLatest($pk);
+		if($pk instanceof HurtArmorPacket) return v419HurtArmorPacket::fromLatest($pk);
+		if($pk instanceof InventoryContentPacket) return v419InventoryContentPacket::fromLatest($pk);
+		if($pk instanceof InventorySlotPacket) return v419InventorySlotPacket::fromLatest($pk);
+		if($pk instanceof InventoryTransactionPacket) return v419InventoryTransactionPacket::fromLatest($pk);
+		if($pk instanceof ItemStackResponsePacket) return v419ItemStackResponsePacket::fromLatest($pk);
+		if($pk instanceof LevelChunkPacket) return v419LevelChunkPacket::fromLatest($pk);
+		if($pk instanceof LevelEventPacket){
+			if($pk->eventId === LevelEvent::PARTICLE_DESTROY || $pk->eventId === (LevelEvent::ADD_PARTICLE_MASK | ParticleIds::TERRAIN)){
+				$pk->eventData = v419TypeConverter::getInstance()->getTypeConverter()->getMVBlockTranslator()->internalIdToNetworkId(MVRuntimeIDtoStateID::getInstance()->getStateIdFromRuntimeId($pk->eventData));
+
+			}elseif($pk->eventId === LevelEvent::PARTICLE_PUNCH_BLOCK){
+				$pk->eventData = v419TypeConverter::getInstance()->getTypeConverter()->getMVBlockTranslator()->internalIdToNetworkId(MVRuntimeIDtoStateID::getInstance()->getStateIdFromRuntimeId($pk->eventData & 0xFFFFFF));
+			}
+			$pk->eventId = self::downgradeParticleEventId($pk->eventId);
+			return $pk;
+		}
+			if($pk instanceof LevelSoundEventPacket){
+				if(($pk->sound === LevelSoundEvent::BREAK && $pk->extraData !== -1) || $pk->sound === LevelSoundEvent::PLACE || $pk->sound === LevelSoundEvent::HIT || $pk->sound === LevelSoundEvent::LAND || $pk->sound === LevelSoundEvent::ITEM_USE_ON){
+					$pk->extraData = v419TypeConverter::getInstance()->getTypeConverter()->getMVBlockTranslator()->internalIdToNetworkId(MVRuntimeIDtoStateID::getInstance()->getStateIdFromRuntimeId($pk->extraData));
+				}
+				return v419LevelSoundEventPacket::fromLatest($pk);
+			}
+			if($pk instanceof PlaySoundPacket) return v419PlaySoundPacket::fromLatest($pk);
+			if($pk instanceof StopSoundPacket) return v419StopSoundPacket::fromLatest($pk);
+			if($pk instanceof MobArmorEquipmentPacket) return v419MobArmorEquipmentPacket::fromLatest($pk);
+		if($pk instanceof MobEquipmentPacket) return v419MobEquipmentPacket::fromLatest($pk);
+		if($pk instanceof MobEffectPacket) return v419MobEffectPacket::fromLatest($pk);
+		if($pk instanceof NetworkChunkPublisherUpdatePacket) return v419NetworkChunkPublisherUpdatePacket::fromLatest($pk);
+		if($pk instanceof NetworkSettingsPacket) return v419NetworkSettingsPacket::fromLatest($pk);
+		if($pk instanceof PhotoTransferPacket) return v419PhotoTransferPacket::fromLatest($pk);
+        if($pk instanceof TransferPacket) return v419TransferPacket::fromLatest($pk);
+		if($pk instanceof PlayerListPacket){
+			foreach($pk->entries as $key => $entry){
+				if(!isset($entry->skinData)) continue;
+				$pk->entries[$key]->skinData = $this->convertSkinData($entry->skinData);
+			}
+			return v419PlayerListPacket::fromLatest($pk);
+		}
+		if($pk instanceof PlayerSkinPacket){
+			$pk->skin = $this->convertSkinData($pk->skin);
+			return v419PlayerSkinPacket::fromLatest($pk);
+		}
+		if($pk instanceof RemoveVolumeEntityPacket) return v419RemoveVolumeEntityPacket::fromLatest($pk);
+		if($pk instanceof ResourcePackStackPacket) return v419ResourcePackStackPacket::fromLatest($pk);
+		if($pk instanceof SetActorDataPacket) return v419SetActorDataPacket::fromLatest($pk);
+		if($pk instanceof SetActorMotionPacket) return v419SetActorMotionPacket::fromLatest($pk);
+		if($pk instanceof SetTitlePacket) return v419SetTitlePacket::fromLatest($pk);
+		if($pk instanceof SpawnParticleEffectPacket) return v419SpawnParticleEffectPacket::fromLatest($pk);
+		if($pk instanceof StartGamePacket) return v419StartGamePacket::fromLatest($pk);
+        if($pk instanceof UpdateAttributesPacket) return v419UpdateAttributesPacket::fromLatest($pk);
+		if($pk instanceof UpdateAbilitiesPacket){
+			foreach(Server::getInstance()->getWorldManager()->getWorlds() as $world){
+				$player = $world->getPlayers()[$pk->getData()->getTargetActorUniqueId()] ?? null;
+				if($player === null) continue;
+				if($player->getId() === $pk->getData()->getTargetActorUniqueId()){
+					$npk = v419AdventureSettingsPacket::create(0, $pk->getData()->getCommandPermission(), -1, $pk->getData()->getPlayerPermission(), 0, $pk->getData()->getTargetActorUniqueId());
+					if(isset($pk->getData()->getAbilityLayers()[0])){
+						$abilities = $pk->getData()->getAbilityLayers()[0]->getBoolAbilities();
+						$npk->setFlag(v419AdventureSettingsPacket::WORLD_IMMUTABLE, $player->isSpectator());
+						$npk->setFlag(v419AdventureSettingsPacket::NO_PVP, $player->isSpectator());
+						$npk->setFlag(v419AdventureSettingsPacket::AUTO_JUMP, $player->hasAutoJump());
+						$npk->setFlag(v419AdventureSettingsPacket::ALLOW_FLIGHT, $abilities[AbilitiesLayer::ABILITY_ALLOW_FLIGHT] ?? false);
+						$npk->setFlag(v419AdventureSettingsPacket::NO_CLIP, $abilities[AbilitiesLayer::ABILITY_NO_CLIP] ?? false);
+						$npk->setFlag(v419AdventureSettingsPacket::FLYING, $abilities[AbilitiesLayer::ABILITY_FLYING] ?? false);
+					}
+					return $npk;
+				}
+			}
+		}
+		if($pk instanceof UpdateAdventureSettingsPacket) return null;
+		if($pk instanceof ItemRegistryPacket) return null;
+		if($pk instanceof UpdateBlockPacket){
+			// Legacy sessions may still receive modern runtime IDs from core world updates.
+			// Convert latest runtime ID -> state ID -> legacy runtime ID for protocol 419.
+			$pk->blockRuntimeId = v419TypeConverter::getInstance()->getTypeConverter()->getMVBlockTranslator()->internalIdToNetworkId(
+				MVRuntimeIDtoStateID::getInstance()->getStateIdFromRuntimeId($pk->blockRuntimeId)
+			);
+			return v419UpdateBlockPacket::fromLatest($pk);
+		}
+		return $pk;
+	}
+
+	private static function downgradeParticleEventId(int $eventId) : int{
+		if(($eventId & LevelEvent::ADD_PARTICLE_MASK) === 0){
+			return $eventId;
+		}
+
+		$particleId = $eventId & ~LevelEvent::ADD_PARTICLE_MASK;
+		// 1.16 predates the candle-flame and breeze-wind-explosion particle insertions.
+		if($particleId >= ParticleIds::CANDLE_FLAME){
+			--$particleId;
+		}
+		if($particleId >= ParticleIds::BREEZE_WIND_EXPLOSION){
+			--$particleId;
+		}
+
+		return LevelEvent::ADD_PARTICLE_MASK | $particleId;
+	}
+
+	public function injectClientData(array &$data) : void{
+		$data["IsEditorMode"] = false;
+		$data["PlayFabId"] = "";
+		$data["SkinGeometryDataEngineVersion"] = "";
+		$data["TrustedSkin"] = true;
+		$data["CompatibleWithClientSideChunkGen"] = false;
+	}
+
+	public function convertSkinData(SkinData $skin) : SkinData{
+		return new SkinData(
+			$skin->getSkinId(),
+			$skin->getPlayFabId(),
+			$skin->getResourcePatch(),
+			$skin->getSkinImage(),
+			$skin->getAnimations(),
+			$skin->getCapeImage(),
+			$skin->getGeometryData() !== "" && str_contains($skin->getGeometryData(), "format_version") ? $skin->getGeometryData() : '{"format_version":"1.12.0","minecraft:geometry":[{"bones":[{"name":"body","parent":"waist","pivot":[0,24,0]},{"name":"waist","pivot":[0,12,0]},{"cubes":[{"origin":[-5,8,3],"size":[10,16,1],"uv":[0,0]}],"name":"cape","parent":"body","pivot":[0,24,3],"rotation":[0,180,0]}],"description":{"identifier":"geometry.cape","texture_height":32,"texture_width":64}},{"bones":[{"name":"root","pivot":[0,0,0]},{"cubes":[{"origin":[-4,12,-2],"size":[8,12,4],"uv":[16,16]}],"name":"body","parent":"waist","pivot":[0,24,0]},{"name":"waist","parent":"root","pivot":[0,12,0]},{"cubes":[{"origin":[-4,24,-4],"size":[8,8,8],"uv":[0,0]}],"name":"head","parent":"body","pivot":[0,24,0]},{"name":"cape","parent":"body","pivot":[0,24,3]},{"cubes":[{"inflate":0.5,"origin":[-4,24,-4],"size":[8,8,8],"uv":[32,0]}],"name":"hat","parent":"head","pivot":[0,24,0]},{"cubes":[{"origin":[4,12,-2],"size":[4,12,4],"uv":[32,48]}],"name":"leftArm","parent":"body","pivot":[5,22,0]},{"cubes":[{"inflate":0.25,"origin":[4,12,-2],"size":[4,12,4],"uv":[48,48]}],"name":"leftSleeve","parent":"leftArm","pivot":[5,22,0]},{"name":"leftItem","parent":"leftArm","pivot":[6,15,1]},{"cubes":[{"origin":[-8,12,-2],"size":[4,12,4],"uv":[40,16]}],"name":"rightArm","parent":"body","pivot":[-5,22,0]},{"cubes":[{"inflate":0.25,"origin":[-8,12,-2],"size":[4,12,4],"uv":[40,32]}],"name":"rightSleeve","parent":"rightArm","pivot":[-5,22,0]},{"locators":{"lead_hold":[-6,15,1]},"name":"rightItem","parent":"rightArm","pivot":[-6,15,1]},{"cubes":[{"origin":[-0.1,0,-2],"size":[4,12,4],"uv":[16,48]}],"name":"leftLeg","parent":"root","pivot":[1.9,12,0]},{"cubes":[{"inflate":0.25,"origin":[-0.1,0,-2],"size":[4,12,4],"uv":[0,48]}],"name":"leftPants","parent":"leftLeg","pivot":[1.9,12,0]},{"cubes":[{"origin":[-3.9,0,-2],"size":[4,12,4],"uv":[0,16]}],"name":"rightLeg","parent":"root","pivot":[-1.9,12,0]},{"cubes":[{"inflate":0.25,"origin":[-3.9,0,-2],"size":[4,12,4],"uv":[0,32]}],"name":"rightPants","parent":"rightLeg","pivot":[-1.9,12,0]},{"cubes":[{"inflate":0.25,"origin":[-4,12,-2],"size":[8,12,4],"uv":[16,32]}],"name":"jacket","parent":"body","pivot":[0,24,0]}],"description":{"identifier":"geometry.humanoid.custom","texture_height":64,"texture_width":64,"visible_bounds_height":2,"visible_bounds_offset":[0,1,0],"visible_bounds_width":1}},{"bones":[{"name":"root","pivot":[0,0,0]},{"name":"waist","parent":"root","pivot":[0,12,0]},{"cubes":[{"origin":[-4,12,-2],"size":[8,12,4],"uv":[16,16]}],"name":"body","parent":"waist","pivot":[0,24,0]},{"cubes":[{"origin":[-4,24,-4],"size":[8,8,8],"uv":[0,0]}],"name":"head","parent":"body","pivot":[0,24,0]},{"cubes":[{"inflate":0.5,"origin":[-4,24,-4],"size":[8,8,8],"uv":[32,0]}],"name":"hat","parent":"head","pivot":[0,24,0]},{"cubes":[{"origin":[-3.9,0,-2],"size":[4,12,4],"uv":[0,16]}],"name":"rightLeg","parent":"root","pivot":[-1.9,12,0]},{"cubes":[{"inflate":0.25,"origin":[-3.9,0,-2],"size":[4,12,4],"uv":[0,32]}],"name":"rightPants","parent":"rightLeg","pivot":[-1.9,12,0]},{"cubes":[{"origin":[-0.1,0,-2],"size":[4,12,4],"uv":[16,48]}],"name":"leftLeg","parent":"root","pivot":[1.9,12,0]},{"cubes":[{"inflate":0.25,"origin":[-0.1,0,-2],"size":[4,12,4],"uv":[0,48]}],"name":"leftPants","parent":"leftLeg","pivot":[1.9,12,0]},{"cubes":[{"origin":[4,11.5,-2],"size":[3,12,4],"uv":[32,48]}],"name":"leftArm","parent":"body","pivot":[5,21.5,0]},{"cubes":[{"inflate":0.25,"origin":[4,11.5,-2],"size":[3,12,4],"uv":[48,48]}],"name":"leftSleeve","parent":"leftArm","pivot":[5,21.5,0]},{"name":"leftItem","parent":"leftArm","pivot":[6,14.5,1]},{"cubes":[{"origin":[-7,11.5,-2],"size":[3,12,4],"uv":[40,16]}],"name":"rightArm","parent":"body","pivot":[-5,21.5,0]},{"cubes":[{"inflate":0.25,"origin":[-7,11.5,-2],"size":[3,12,4],"uv":[40,32]}],"name":"rightSleeve","parent":"rightArm","pivot":[-5,21.5,0]},{"locators":{"lead_hold":[-6,14.5,1]},"name":"rightItem","parent":"rightArm","pivot":[-6,14.5,1]},{"cubes":[{"inflate":0.25,"origin":[-4,12,-2],"size":[8,12,4],"uv":[16,32]}],"name":"jacket","parent":"body","pivot":[0,24,0]},{"name":"cape","parent":"body","pivot":[0,24,-3]}],"description":{"identifier":"geometry.humanoid.customSlim","texture_height":64,"texture_width":64,"visible_bounds_height":2,"visible_bounds_offset":[0,1,0],"visible_bounds_width":1}}]}',
+			$skin->getGeometryDataEngineVersion(),
+			$skin->getAnimationData(),
+			$skin->getCapeId(),
+			$skin->getFullSkinId(),
+			$skin->getArmSize(),
+			$skin->getSkinColor(),
+			$skin->getPersonaPieces(),
+			$skin->getPieceTintColors(),
+			$skin->isVerified(),
+			$skin->isPremium(),
+			$skin->isPersona(),
+			$skin->isPersonaCapeOnClassic(),
+			$skin->isPrimaryUser(),
+			$skin->isOverride(),
+		);
+	}
+
+	public function getCraftingDataCache() : string{
+		return $this->craftingDataCache;
+	}
+}
