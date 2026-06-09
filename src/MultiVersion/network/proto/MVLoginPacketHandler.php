@@ -106,6 +106,11 @@ class MVLoginPacketHandler extends LoginPacketHandler{
 			}
 		}
 
+        $authInfoArray = json_decode($packet->authInfoJson, true);
+        if(is_array($authInfoArray) && ($authInfoArray['AuthenticationType'] ?? null) === 2 && empty($authInfoArray['Certificate'] ?? null)){
+            $authInfoArray['Certificate'] = json_encode(['chain' => [$authInfoArray['Token']]]);
+            $packet->authInfoJson = json_encode($authInfoArray);
+        }
         return parent::handleLogin($packet);
 	}
 
