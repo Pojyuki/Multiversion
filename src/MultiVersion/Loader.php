@@ -9,6 +9,7 @@ use MultiVersion\network\proto\login\LoginPacket;
 use pocketmine\event\EventPriority;
 use pocketmine\event\server\DataPacketReceiveEvent;
 use pocketmine\event\server\NetworkInterfaceRegisterEvent;
+use pocketmine\event\world\ChunkLoadEvent;
 use pocketmine\network\mcpe\protocol\PacketPool;
 use pocketmine\network\mcpe\protocol\ProtocolInfo;
 use pocketmine\network\mcpe\protocol\PacketViolationWarningPacket;
@@ -64,6 +65,12 @@ final class Loader extends PluginBase{
 		if($server->getConfigGroup()->getConfigBool("enable-ipv6", true)){
 			($regInterface)($server, true);
 		}
+
+		$server->getPluginManager()->registerEvent(ChunkLoadEvent::class, function(ChunkLoadEvent $event) : void{
+			if(!$event->isNewChunk()){
+				$event->getChunk()->clearTerrainDirtyFlags();
+			}
+		}, EventPriority::LOWEST, $this);
 
         PacketPool::getInstance()->registerPacket(new LoginPacket());
 		$server->getPluginManager()->registerEvent(NetworkInterfaceRegisterEvent::class, function(NetworkInterfaceRegisterEvent $event) : void{
