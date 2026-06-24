@@ -79,6 +79,8 @@ class MVLoginPacketHandler extends LoginPacketHandler{
 	 * @throws ReflectionException
 	 */
 	public function handleLogin(LoginPacket $packet) : bool{
+		$this->normalizeSelfSignedAuthInfo($packet);
+
 		if(!in_array($packet->protocol, MultiVersion::getProtocols(), true)){
 			// Let the underlying server handle protocols not explicitly translated by this plugin.
 			$this->session->setNativeProtocolId($packet->protocol);
@@ -112,6 +114,35 @@ class MVLoginPacketHandler extends LoginPacketHandler{
             $packet->authInfoJson = json_encode($authInfoArray);
         }
         return parent::handleLogin($packet);
+	}
+
+	private function normalizeSelfSignedAuthInfo(LoginPacket $packet) : void{
+		try{
+			$authInfo = json_decode($packet->authInfoJson, associative: true, flags: JSON_THROW_ON_ERROR);
+		}catch(\JsonException){
+			return;
+		}
+		if(!is_array($authInfo)){
+			return;
+		}
+		if(($authInfo["AuthenticationType"] ?? null) !== 2){
+			return;
+		}
+		if(isset($authInfo["Certificate"]) && is_string($authInfo["Certificate"]) && $authInfo["Certificate"] !== ""){
+			return;
+		}
+
+		$token = $authInfo["Token"] ?? null;
+		if(!is_string($token) || $token === ""){
+			return;
+		}
+
+		try{
+			$authInfo["Certificate"] = json_encode(["chain" => [$token]], flags: JSON_THROW_ON_ERROR);
+			$packet->authInfoJson = json_encode($authInfo, flags: JSON_THROW_ON_ERROR);
+		}catch(\JsonException){
+			return;
+		}
 	}
 
 	public function v419handleLogin(login\LoginPacket $packet) : bool{
