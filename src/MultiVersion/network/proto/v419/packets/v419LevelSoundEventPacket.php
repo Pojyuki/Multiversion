@@ -6,14 +6,14 @@ use pocketmine\math\Vector3;
 use pocketmine\network\mcpe\protocol\LevelSoundEventPacket;
 use pocketmine\network\mcpe\protocol\PacketHandlerInterface;
 use pocketmine\network\mcpe\protocol\ProtocolInfo;
-use pocketmine\network\mcpe\protocol\serializer\PacketSerializer;
+use pocketmine\network\mcpe\protocol\types\LevelSoundEvent;
 
 class v419LevelSoundEventPacket extends LevelSoundEventPacket
 {
     public const NETWORK_ID = ProtocolInfo::LEVEL_SOUND_EVENT_PACKET;
 
     /** @see LevelSoundEvent */
-    public int $sound;
+    public string $sound;
     public Vector3 $position;
     public int $extraData = -1;
     public string $entityType = ":"; //???
@@ -34,14 +34,13 @@ class v419LevelSoundEventPacket extends LevelSoundEventPacket
         return $result;
     }
 
-    public static function nonActorSound(int $sound, Vector3 $position, bool $disableRelativeVolume, int $extraData = -1) : self{
-        return self::create($sound, $position, $extraData, ":", false, $disableRelativeVolume);
+    public static function nonActorSound(string $sound, Vector3 $position, bool $disableRelativeVolume, int $extraData = -1) : self{
+        return self::create(LevelSoundEvent::toId($sound), $position, $extraData, ":", false, $disableRelativeVolume);
     }
 
     protected function decodePayload(\pmmp\encoding\ByteBufferReader $in, ?int $protocolId = null) : void{
-
     	$in = \MultiVersion\network\proto\v419\v419PacketSerializer::reader($in, $protocolId);
-        $this->sound = $in->getUnsignedVarInt();
+        $this->sound = LevelSoundEvent::toString($in->getUnsignedVarInt());
         $this->position = $in->getVector3();
         $this->extraData = $in->getVarInt();
         $this->entityType = $in->getString();
@@ -50,9 +49,8 @@ class v419LevelSoundEventPacket extends LevelSoundEventPacket
     }
 
     protected function encodePayload(\pmmp\encoding\ByteBufferWriter $out, ?int $protocolId = null) : void{
-
     	$out = \MultiVersion\network\proto\v419\v419PacketSerializer::writer($out, $protocolId);
-        $out->putUnsignedVarInt($this->sound);
+        $out->putUnsignedVarInt(LevelSoundEvent::toId($this->sound));
         $out->putVector3($this->position);
         $out->putVarInt($this->extraData);
         $out->putString($this->entityType);
@@ -64,4 +62,3 @@ class v419LevelSoundEventPacket extends LevelSoundEventPacket
         return $handler->handleLevelSoundEvent($this);
     }
 }
-
